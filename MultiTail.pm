@@ -128,7 +128,7 @@ sub new {
 ########################################################################
 #
 sub update_attribute {
-	my ($rFileDataStructure)=shift;
+	my ($rFD)=shift;
 	my(%argvs)=@_;
 	my $args = getparams(\%argvs);
 	#
@@ -136,7 +136,7 @@ sub update_attribute {
 		if ( $keys eq "Files" ) {
 			$FileAttributeChanged=$True;
 		}
-		$rFileDataStructure->{$keys}=$args->{$keys} if $args->{$keys};
+		$rFD->{$keys}=$args->{$keys} if $args->{$keys};
 	}
 }
 #
@@ -349,8 +349,8 @@ sub CreateFileDataStructure {
 	#
 	if ( %Attribute ) {
 		$online=$True;
-		foreach my $FILEH ( @{$Attribute{'FileArray'}} ) {
-			$FileHash{$FILEH->{'name'}} = 1;
+		foreach my $FH ( @{$Attribute{'FileArray'}} ) {
+			$FileHash{$FH->{'name'}} = 1;
 		}
 	}
 	foreach my $FILE ( @$File_Array ) {
@@ -505,20 +505,20 @@ sub CreateListOfFiles {
 #
 sub read {
 	#
-	my ($rFileDataStructure)=shift;
+	my ($rFD)=shift;
 	my @TotalArray=();		# Used with attribute Fuction
 	my $PresentTime=time;
 	#
 	# Check if file dir should be rescanned
 	# $LastScan is in sec
-	# $rFileDataStructure->{'ScanForFiles'} is in minutes
+	# $rFD->{'ScanForFiles'} is in minutes
 	#
-	if (( $rFileDataStructure->{'ScanForFiles'} and 
-            ($LastScan + ($rFileDataStructure->{'ScanForFiles'}*60)) < $PresentTime) or
+	if (( $rFD->{'ScanForFiles'} and 
+            ($LastScan + ($rFD->{'ScanForFiles'}*60)) < $PresentTime) or
 	     $FileAttributeChanged ) {
 		print STDOUT "Scanning for new files\n" if $DEBUG;
-		$rFileDataStructure->{'FileArray'} = 
-		CreateFileDataStructure( CreateListOfFiles($rFileDataStructure->{'Files'}));
+		$rFD->{'FileArray'} = 
+		CreateFileDataStructure( CreateListOfFiles($rFD->{'Files'}));
 		#
 		$LastScan = $PresentTime;
 		$FileAttributeChanged=$False;
@@ -527,54 +527,54 @@ sub read {
 	# This is for DEBUG
 	if ( $DEBUG ) {
 		print STDOUT "DEBUG list of file to be checked\n";
-		foreach my $FILEH ( @{$rFileDataStructure->{'FileArray'}} ) {
-			print $FILEH->{'name'} . "\n";
+		foreach my $FH ( @{$rFD->{'FileArray'}} ) {
+			print $FH->{'name'} . "\n";
 		}
 	}
 	#
 	# Check stat of files
 	#
-	OpenUpdateFiles($rFileDataStructure);
+	OpenUpdateFiles($rFD);
 	#
 	#
-	foreach my $FILEH ( @{$rFileDataStructure->{'FileArray'}} ) {
+	foreach my $FH ( @{$rFD->{'FileArray'}} ) {
 		# reset array to remove last read data
-		@{$FILEH->{'LineArray'}}=();
+		@{$FH->{'LineArray'}}=();
 		#
-		if ( $FILEH->{'exist'} and $FILEH->{'open'} ) {
-			if ( defined $FILEH->{'fh'} ) {
-				@{$FILEH->{'LineArray'}} = $FILEH->{'fh'}->getlines;
-				$FILEH->{'pos'}=$FILEH->{'fh'}->getpos;
+		if ( $FH->{'exist'} and $FH->{'open'} ) {
+			if ( defined $FH->{'fh'} ) {
+				@{$FH->{'LineArray'}} = $FH->{'fh'}->getlines;
+				$FH->{'pos'}=$FH->{'fh'}->getpos;
 			}
-			if ($FILEH->{'stat'}{mtime} < ($PresentTime - $rFileDataStructure->{'MaxAge'})) {
-				$FILEH->{'fh'}->close;
-				$FILEH->{'close'} = $True;
+			if ($FH->{'stat'}{mtime} < ($PresentTime - $rFD->{'MaxAge'})) {
+				$FH->{'fh'}->close;
+				$FH->{'close'} = $True;
 			}
 		}
-		$FILEH->{'LastState'} = FileState;
+		$FH->{'LastState'} = FileState;
 	}
 	#
 	# Run Pattern function if object Pattern attribute was set
-	Patterns($rFileDataStructure) if $rFileDataStructure->{'Pattern'};
+	Patterns($rFD) if $rFD->{'Pattern'};
 	#
 	# Run ExceptPatterns function if object ExceptPatterns attribute was set
-	ExceptPatterns($rFileDataStructure) if $rFileDataStructure->{'ExceptPattern'};
+	ExceptPatterns($rFD) if $rFD->{'ExceptPattern'};
 	#
 	# Remove deplicate line from arrays
-	RemoveDups($rFileDataStructure) if $rFileDataStructure->{'RemoveDuplicate'};
+	RemoveDups($rFD) if $rFD->{'RemoveDuplicate'};
 	#
 	# create a Prefix Array if object OutputPrefix attribute was set
-	Prefix($rFileDataStructure,0) if $rFileDataStructure->{'OutputPrefix'};
+	Prefix($rFD,0) if $rFD->{'OutputPrefix'};
 	#
 	# Run custom function Pass complete array to custom user fuction
-	if ( $rFileDataStructure->{'Function'} ) {
-		foreach my $FILEH ( @{$rFileDataStructure->{'FileArray'}} ) {
-			push(@TotalArray,@{$FILEH->{LineArray}});
+	if ( $rFD->{'Function'} ) {
+		foreach my $FH ( @{$rFD->{'FileArray'}} ) {
+			push(@TotalArray,@{$FH->{LineArray}});
 		}
-		&{$rFileDataStructure->{'Function'}}(\@TotalArray)
+		&{$rFD->{'Function'}}(\@TotalArray)
 	}
 	#
-	return($rFileDataStructure);
+	return($rFD);
 }
 #
 ########################################################################
@@ -584,9 +584,9 @@ sub read {
 ########################################################################
 #
 sub print {
-	my($rFileDataStructure)=shift;
-	foreach my $FILEH ( @{$rFileDataStructure->{FileArray}} ) {
-		foreach my $LINE ( @{$FILEH->{LineArray}} ) {
+	my($rFD)=shift;
+	foreach my $FH ( @{$rFD->{FileArray}} ) {
+		foreach my $LINE ( @{$FH->{LineArray}} ) {
 			print $LINE;
 		}
 	}
@@ -599,10 +599,10 @@ sub print {
 ########################################################################
 #
 sub printpat {
-	my($rFileDataStructure)=shift;
-	#print STDOUT Data::Dumper->Dump($rFileDataStructure) if $DEBUG;
-	foreach my $FILEH ( @$rFileDataStructure{'FileArray'} ) {
-		foreach my $LINE ( @{$FILEH->{PatternLineArray}} ) {
+	my($rFD)=shift;
+	#print STDOUT Data::Dumper->Dump($rFD) if $DEBUG;
+	foreach my $FH ( @$rFD{'FileArray'} ) {
+		foreach my $LINE ( @{$FH->{PatternLineArray}} ) {
 			print $LINE;
 		}
 	}
@@ -615,10 +615,10 @@ sub printpat {
 ########################################################################
 #
 sub printexceptpat {
-	my($rFileDataStructure)=shift;
-	#print STDOUT Data::Dumper->Dump($rFileDataStructure) if $DEBUG;
-	foreach my $FILEH ( @$rFileDataStructure{'FileArray'} ) {
-		foreach my $LINE ( @{$FILEH->{ExceptPatternLineArray}} ) {
+	my($rFD)=shift;
+	#print STDOUT Data::Dumper->Dump($rFD) if $DEBUG;
+	foreach my $FH ( @$rFD{'FileArray'} ) {
+		foreach my $LINE ( @{$FH->{ExceptPatternLineArray}} ) {
 			print $LINE;
 		}
 	}
@@ -631,12 +631,12 @@ sub printexceptpat {
 ########################################################################
 #
 sub printstat {
-	my($rFileDataStructure)=shift;
-	foreach my $FILEH ( @$rFileDataStructure{'FileArray'} ) {
-		print "Stat ouput for file $FILEH->{name}\n";
+	my($rFD)=shift;
+	foreach my $FH ( @$rFD{'FileArray'} ) {
+		print "Stat ouput for file $FH->{name}\n";
 		print "------------------------------------------------\n";
 		foreach my $stat_id ( @StatArray ) {
-			print "$stat_id = $FILEH->{'stat'}{$stat_id}\n";
+			print "$stat_id = $FH->{'stat'}{$stat_id}\n";
 		}
 	}
 }
@@ -649,23 +649,23 @@ sub printstat {
 ########################################################################
 #
 sub printfilestates {
-	my($FILEH)=@_;
+	my($FH)=@_;
 	my $vector=pack("b4",0);
 	my $open; my $read; my $exist;my $online;
 
-	if ( $FILEH->{'FileState'} != $FILEH->{'LastState'} ) {
-		print STDOUT "The State of file $FILEH->{name} has changed\n";
+	if ( $FH->{'FileState'} != $FH->{'LastState'} ) {
+		print STDOUT "The State of file $FH->{name} has changed\n";
 		print STDOUT "-Old state\n";
-		vec($vector,0,4)=$FILEH->{'LastState'};
+		vec($vector,0,4)=$FH->{'LastState'};
 		($online,$read,$open,$exist) = split(//, unpack("b4", $vector));
 		print STDOUT "\tExist = $exist Open = $open Read = $read Online = $online \n";
 		print STDOUT "-New State\n";
-		vec($vector,0,4)=$FILEH->{'FileState'};
+		vec($vector,0,4)=$FH->{'FileState'};
 		($online,$read,$open,$exist) = split(//, unpack("b4", $vector));
 		print STDOUT "\tExist = $exist Open = $open Read = $read Online = $online \n";
 	}
 	else {
-		print STDOUT "No Change in state for file $FILEH->{name}\n";
+		print STDOUT "No Change in state for file $FH->{name}\n";
 	}
 }
 ########################################################################
@@ -737,43 +737,43 @@ sub CheckIfArrayOrFile {
 #
 ########################################################################
 sub Prefix {
-	my($rFileDataStructure)=shift;
+	my($rFD)=shift;
 	my($ArrayType)=@_;
 	#
 	my @TempArray=();
 	my $InArray="LineArray";
 	my $OutArray="LineArray";
-	my $r=$rFileDataStructure;
+	my $r=$rFD;
 	my $TmpOutputPrefix;
 	#
 	# Check for GMT
 	#
-	$TmpOutputPrefix = $rFileDataStructure->{'OutputPrefix'};
-	if ( $rFileDataStructure->{'OutputPrefix'} =~ /g/ ) {
+	$TmpOutputPrefix = $rFD->{'OutputPrefix'};
+	if ( $rFD->{'OutputPrefix'} =~ /g/ ) {
 		$TmpOutputPrefix =~ s/g//;
 		$GMT=$True;
 	}
-	foreach my $FILEH ( @{$rFileDataStructure->{'FileArray'}} ) {
-		foreach my $LINE ( @{$FILEH->{$InArray}} ) {
+	foreach my $FH ( @{$rFD->{'FileArray'}} ) {
+		foreach my $LINE ( @{$FH->{$InArray}} ) {
 			$TmpOutputPrefix eq "p" && 
-			   push(@TempArray,"$FILEH->{'name'} : $LINE");
+			   push(@TempArray,"$FH->{'name'} : $LINE");
 			$TmpOutputPrefix eq "f" && 
-			   push(@TempArray,"$FILEH->{'basename'} : $LINE");
+			   push(@TempArray,"$FH->{'basename'} : $LINE");
 			$TmpOutputPrefix eq "t" && 
 			   push(@TempArray,Time($r) . " : $LINE");
 			$TmpOutputPrefix eq "pt" && 
-			   push(@TempArray,"$FILEH->{'name'} " . Time($r) . " : $LINE");
+			   push(@TempArray,"$FH->{'name'} " . Time($r) . " : $LINE");
 			$TmpOutputPrefix eq "tp" && 
-			   push(@TempArray,Time($r) . " $FILEH->{'name'} : $LINE");
+			   push(@TempArray,Time($r) . " $FH->{'name'} : $LINE");
 			$TmpOutputPrefix eq "ft" && 
-			   push(@TempArray,"$FILEH->{'basename'} " . Time($r) . " : $LINE");
+			   push(@TempArray,"$FH->{'basename'} " . Time($r) . " : $LINE");
 			$TmpOutputPrefix eq "tf" && 
-			   push(@TempArray,Time($r) . " $FILEH->{'basename'} : $LINE");
+			   push(@TempArray,Time($r) . " $FH->{'basename'} : $LINE");
 		}
-		@{$FILEH->{$OutArray}} = @TempArray;
+		@{$FH->{$OutArray}} = @TempArray;
 		@TempArray=();
 	}
-	return($rFileDataStructure);
+	return($rFD);
 }
 ########################################################################
 #
@@ -784,17 +784,17 @@ sub Prefix {
 #
 ########################################################################
 sub Patterns {
-	my($rFileDataStructure)=shift;
+	my($rFD)=shift;
 	#
-  $pattern_sub = match_closure(CheckIfArrayOrFile($rFileDataStructure->{'Pattern'})) unless defined($pattern_sub);
-	foreach my $FILEH ( @{$rFileDataStructure->{FileArray}} ) {
-		@{$FILEH->{PatternLineArray}}=();
-		foreach my $LINE ( @{$FILEH->{LineArray}} ) {
-			push(@{$FILEH->{PatternLineArray}},$LINE) if ( $pattern_sub->($LINE) );
+  $pattern_sub = match_closure(CheckIfArrayOrFile($rFD->{'Pattern'})) unless defined($pattern_sub);
+	foreach my $FH ( @{$rFD->{FileArray}} ) {
+		@{$FH->{PatternLineArray}}=();
+		foreach my $LINE ( @{$FH->{LineArray}} ) {
+			push(@{$FH->{PatternLineArray}},$LINE) if ( $pattern_sub->($LINE) );
 		}
-		@{$FILEH->{LineArray}}=@{$FILEH->{PatternLineArray}};
+		@{$FH->{LineArray}}=@{$FH->{PatternLineArray}};
 	}
-	return($rFileDataStructure);
+	return($rFD);
 }
 #
 ########################################################################
@@ -805,18 +805,18 @@ sub Patterns {
 ########################################################################
 #
 sub ExceptPatterns {
-	my($rFileDataStructure)=shift;
+	my($rFD)=shift;
 	#
-  $exceptpattern_sub = match_closure(CheckIfArrayOrFile($rFileDataStructure->{'ExceptPattern'})) unless defined($exceptpattern_sub);
-	foreach my $FILEH ( @{$rFileDataStructure->{FileArray}} ) {
-		@{$FILEH->{ExceptPatternLineArray}}=();
-		foreach my $LINE ( @{$FILEH->{LineArray}} ) {
-				push(@{$FILEH->{ExceptPatternLineArray}},$LINE) unless ( $exceptpattern_sub->($LINE) );
+  $exceptpattern_sub = match_closure(CheckIfArrayOrFile($rFD->{'ExceptPattern'})) unless defined($exceptpattern_sub);
+	foreach my $FH ( @{$rFD->{FileArray}} ) {
+		@{$FH->{ExceptPatternLineArray}}=();
+		foreach my $LINE ( @{$FH->{LineArray}} ) {
+				push(@{$FH->{ExceptPatternLineArray}},$LINE) unless ( $exceptpattern_sub->($LINE) );
 		}
-		@{$FILEH->{LineArray}}=@{$FILEH->{ExceptPatternLineArray}};
+		@{$FH->{LineArray}}=@{$FH->{ExceptPatternLineArray}};
 	}
 	#
-	return($rFileDataStructure);
+	return($rFD);
 }
 #
 ########################################################################
@@ -838,17 +838,17 @@ sub match_closure {
 ########################################################################
 #
 sub RemoveDups {
-	my($rFileDataStructure)=shift;
+	my($rFD)=shift;
 	my %Mark;
 	#
-	foreach my $FILEH ( @{$rFileDataStructure->{FileArray}} ) {
+	foreach my $FH ( @{$rFD->{FileArray}} ) {
 		#
 		undef(%Mark);
-		grep($Mark{$_}++, @{$FILEH->{LineArray}});
-		@{$FILEH->{LineArray}}=(keys(%Mark)); 
+		grep($Mark{$_}++, @{$FH->{LineArray}});
+		@{$FH->{LineArray}}=(keys(%Mark)); 
 		undef(%Mark);
 	}
-	return($rFileDataStructure);
+	return($rFD);
 }
 ########################################################################
 #
@@ -936,13 +936,13 @@ sub RemoveDups {
 ########################################################################
 sub OpenUpdateFiles {
 	#
-	my($rFileDataStructure)=shift;
+	my($rFD)=shift;
 	my $FS;
 	#
-	foreach my $FILEH ( @{$rFileDataStructure->{'FileArray'}} ) {
+	foreach my $FH ( @{$rFD->{'FileArray'}} ) {
 		#
 		# check if file exist and update stat
-		$FS = UpdateStat($FILEH);
+		$FS = UpdateStat($FH);
 		#
 		SWITCH: {
 		#
@@ -950,49 +950,49 @@ sub OpenUpdateFiles {
 				last SWITCH;	
 			};
 			($FS==2 || $FS==4 || $FS==6 ) && do {
-				SetFileState($FILEH,0);
+				SetFileState($FH,0);
 				last SWITCH;	
 			};
 			($FS==1 || $FS==3 || $FS==5 || $FS==7 ) && do {
-				SetFileState($FILEH,1);
+				SetFileState($FH,1);
 				last SWITCH;	
 			};
 			($FS==8 || $FS==14 ) && do {
-				$FILEH->{'fh'} = new FileHandle "$FILEH->{name}", "r";
-				$FILEH->{'OpenTime'} = time;
-				if ( defined($FILEH->{'fh'}) ) {
-					SetFileState($FILEH,15);
-					PosFileMark($FILEH);
+				$FH->{'fh'} = new FileHandle "$FH->{name}", "r";
+				$FH->{'OpenTime'} = time;
+				if ( defined($FH->{'fh'}) ) {
+					SetFileState($FH,15);
+					PosFileMark($FH);
 				}
 				last SWITCH;	
 			};
 			($FS==9 ) && do {
-				$FILEH->{'fh'} = new FileHandle "$FILEH->{name}", "r";
-				$FILEH->{'OpenTime'} = time;
-				if ( defined($FILEH->{'fh'}) ) {
-					SetFileState($FILEH,15);
+				$FH->{'fh'} = new FileHandle "$FH->{name}", "r";
+				$FH->{'OpenTime'} = time;
+				if ( defined($FH->{'fh'}) ) {
+					SetFileState($FH,15);
 				}
 				last SWITCH;	
 			};
 			($FS==12 ) && do {
-				OpenFileToTail($rFileDataStructure,$FILEH);
-				if ( $FILEH->{'open'} ) {
-					SetFileState($FILEH,15);
+				OpenFileToTail($rFD,$FH);
+				if ( $FH->{'open'} ) {
+					SetFileState($FH,15);
 				}
 				last SWITCH;	
 			};
 			($FS==10 || $FS==11 || $FS==13 || $FS==15 ) && do {
-				OpenFileToTail($rFileDataStructure,$FILEH);
-				if ( $FILEH->{'open'} ) {
-					SetFileState($FILEH,15);
-					$FILEH->{'fh'}->setpos($FILEH->{'pos'});
+				OpenFileToTail($rFD,$FH);
+				if ( $FH->{'open'} ) {
+					SetFileState($FH,15);
+					$FH->{'fh'}->setpos($FH->{'pos'});
 				}
 				last SWITCH;	
 			};
 		}
 		# get current state of file
-		$FILEH->{'FileState'}=FileState($FILEH);
-		printfilestates($FILEH) if $DEBUG;
+		$FH->{'FileState'}=FileState($FH);
+		printfilestates($FH) if $DEBUG;
 	}
 }
 #
@@ -1003,29 +1003,29 @@ sub OpenUpdateFiles {
 ########################################################################
 #
 sub OpenFileToTail {
-	my($rFileDataStructure)=shift;
-	my($FILEH)=@_;
+	my($rFD)=shift;
+	my($FH)=@_;
 	my $PresentTime=time;
 	#
 	# return if file is already open
 	#
 	#
 	# check if file has been changed in last MaxAge hours
-	if ( ($FILEH->{'LastMtime'} == $FILEH->{'stat'}{mtime}) && 
-	     ($FILEH->{'stat'}{mtime} < ($PresentTime - $rFileDataStructure->{'MaxAge'})) &&
-	      $FILEH->{'open'} ) {
-		$FILEH->{'fh'}->close if defined($FILEH->{'fh'});
-		$FILEH->{'OpenTime'} = 0;
-		$FILEH->{'open'}=$False;
+	if ( ($FH->{'LastMtime'} == $FH->{'stat'}{mtime}) && 
+	     ($FH->{'stat'}{mtime} < ($PresentTime - $rFD->{'MaxAge'})) &&
+	      $FH->{'open'} ) {
+		$FH->{'fh'}->close if defined($FH->{'fh'});
+		$FH->{'OpenTime'} = 0;
+		$FH->{'open'}=$False;
 		return;
 	}
-	if ( $FILEH->{'LastMtime'} == $FILEH->{'stat'}{mtime} ) {
+	if ( $FH->{'LastMtime'} == $FH->{'stat'}{mtime} ) {
 		return;
 	}
-	if ( ! $FILEH->{'open'} && $FILEH->{'LastMtime'} < $FILEH->{'stat'}{mtime} ) { 
-		$FILEH->{'fh'} = new FileHandle "$FILEH->{name}", "r";
-		$FILEH->{'open'}=$True;
-		$FILEH->{'OpenTime'} = $PresentTime;
+	if ( ! $FH->{'open'} && $FH->{'LastMtime'} < $FH->{'stat'}{mtime} ) { 
+		$FH->{'fh'} = new FileHandle "$FH->{name}", "r";
+		$FH->{'open'}=$True;
+		$FH->{'OpenTime'} = $PresentTime;
 	}
 }
 #
@@ -1036,26 +1036,26 @@ sub OpenFileToTail {
 ########################################################################
 #
 sub UpdateStat {
-	my($FILEH)=@_;
+	my($FH)=@_;
 	my $tmps;
 	#
 	{
 	no strict 'refs';
-	$FILEH->{'LastMtime'} = $FILEH->{'stat'}{'mtime'};
+	$FH->{'LastMtime'} = $FH->{'stat'}{'mtime'};
 	}
-	$FILEH->{'exist'} = (stat($FILEH->{'name'}) ? $True : $False);
-	$FILEH->{'read'} = $False unless $FILEH->{exist};
+	$FH->{'exist'} = (stat($FH->{'name'}) ? $True : $False);
+	$FH->{'read'} = $False unless $FH->{exist};
 	#
 	foreach my $stat_id ( @StatArray ) {
 		$tmps="st_". $stat_id;
 		{
 		no strict 'refs';
-		$FILEH->{'stat'}{$stat_id} = $$tmps;
+		$FH->{'stat'}{$stat_id} = $$tmps;
 		}
 	}
 	# get current state of file
-	$FILEH->{'LastStat'} = $FILEH->{'FileState'};
-	$FILEH->{'FileState'} = FileState($FILEH);
+	$FH->{'LastStat'} = $FH->{'FileState'};
+	$FH->{'FileState'} = FileState($FH);
 	#
 	# this will return the FileState
 }
@@ -1067,7 +1067,7 @@ sub UpdateStat {
 ########################################################################
 #
 sub Time {
-	my($rFileDataStructure)=shift;
+	my($rFD)=shift;
 	my($sec,$min,$hour)=($GMT ? gmtime : localtime);
 	sprintf("%02d%02d%02d", $hour,$min,$sec);
 }
@@ -1089,14 +1089,14 @@ sub version {
 ########################################################################
 #
 sub debug {
-	my($rFileDataStructure)=shift;
-	if ( $rFileDataStructure->{'Debug'} ) {
+	my($rFD)=shift;
+	if ( $rFD->{'Debug'} ) {
 		$DEBUG=0;
 	}
 	else {
 		$DEBUG=1;
 	}
-	$rFileDataStructure->{'Debug'}=$DEBUG;
+	$rFD->{'Debug'}=$DEBUG;
 }
 #
 ########################################################################
@@ -1106,11 +1106,11 @@ sub debug {
 ########################################################################
 #
 sub close_all_files{
-	my ($rFileDataStructure)=shift;
-	foreach my $FILEH ( @{$rFileDataStructure->{'FileArray'}} ) {
-		next if ! defined $FILEH->{fh};
-		print "Closing file $FILEH->{name} ...\n" if $DEBUG;
-		$FILEH->{fh}->close;
+	my ($rFD)=shift;
+	foreach my $FH ( @{$rFD->{'FileArray'}} ) {
+		next if ! defined $FH->{fh};
+		print "Closing file $FH->{name} ...\n" if $DEBUG;
+		$FH->{fh}->close;
 	}
 }	
 #
@@ -1126,13 +1126,13 @@ sub close_all_files{
 ########################################################################
 #
 sub FileState{
-	my($FILEH)=@_;
+	my($FH)=@_;
 	my $vector=pack("b4",0);
 	#
- 	vec($vector,0,1)=$FILEH->{'online'};	
- 	vec($vector,1,1)=$FILEH->{'read'};	
- 	vec($vector,2,1)=$FILEH->{'open'};	
- 	vec($vector,3,1)=$FILEH->{'exist'};	
+ 	vec($vector,0,1)=$FH->{'online'};	
+ 	vec($vector,1,1)=$FH->{'read'};	
+ 	vec($vector,2,1)=$FH->{'open'};	
+ 	vec($vector,3,1)=$FH->{'exist'};	
 	vec($vector,0,8);
 }
 ########################################################################
@@ -1147,16 +1147,16 @@ sub FileState{
 ########################################################################
 #
 sub SetFileState{
-	my($FILEH,$NewState)=@_;
+	my($FH,$NewState)=@_;
 	my $vector=pack("b4",0);
 	#
 
 	if ( $NewState > 15 ) { $NewState=15; }
 
 	vec($vector,0,4)=$NewState;
-	($FILEH->{'online'},$FILEH->{'read'},$FILEH->{'open'},$FILEH->{'exist'}) =
+	($FH->{'online'},$FH->{'read'},$FH->{'open'},$FH->{'exist'}) =
 	split(//, unpack("b4", $vector));
-	$FILEH->{'FileState'}=$NewState;
+	$FH->{'FileState'}=$NewState;
 }
 #
 ########################################################################
@@ -1167,19 +1167,19 @@ sub SetFileState{
 #
 
 sub PosFileMark {
-	my($FILEH)=@_;
+	my($FH)=@_;
 	#
 	my $line;
 	my $pos;
 	my @lines=();
-	my $fh=$FILEH->{'fh'};
+	my $fh=$FH->{'fh'};
 	my $CharALine=120;
 	my $seekbacklines=$Attribute{'NumLines'};
 	my $seekback=$CharALine * ($seekbacklines +1);
 	#
 	if ( $seekbacklines <= 0 ) { # Move to end of file
 		seek($fh,0,2);
-		$FILEH->{'pos'}=$fh->getpos;
+		$FH->{'pos'}=$fh->getpos;
 		return;
 	}
 	else {
@@ -1202,7 +1202,7 @@ sub PosFileMark {
 	#
 	seek($fh, -$pos, 2);
 	#
-	$FILEH->{'pos'}=$fh->getpos;
+	$FH->{'pos'}=$fh->getpos;
 	#
 }
 #
@@ -1212,24 +1212,24 @@ sub PosFileMark {
 #
 ########################################################################
 #
-#sub AUTOLOAD {
-#	my($rFileDataStructure)=shift;
-#	my $type = ref($rFileDataStructure) || croak "$rFileDataStructure is not and object";
-#	my $attribute = $AUTOLOAD;
-#	$attribute =~ s/.*://;
-#	unless ( exists $rFileDataStructure->{$attribute} ) {
-#		croak "Can't access $attribute field in oject $rFileDataStructure";
-#	}
-#	if ( $attribute eq "Files" ) {
-#		$FileAttributeChanged=$True;
-#	}
-#	CheckAttributes($rFileDataStructure);
-#	if (@_) {
-#		return $rFileDataStructure->{$attribute} = shift;
-#	} else {
-#		return $rFileDataStructure->{$attribute};
-#	}
-#}
+sub AUTOLOAD {
+	my($rFD)=shift;
+	my $type = ref($rFD) || croak "$rFD is not and object";
+	my $attribute = $AUTOLOAD;
+	$attribute =~ s/.*://;
+	unless ( exists $rFD->{$attribute} ) {
+		croak "Can't access $attribute field in oject $rFD";
+	}
+	if ( $attribute eq "Files" ) {
+		$FileAttributeChanged=$True;
+	}
+	CheckAttributes($rFD);
+	if (@_) {
+		return $rFD->{$attribute} = shift;
+	} else {
+		return $rFD->{$attribute};
+	}
+}
 #
 #
 ########################################################################

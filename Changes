@@ -11,3 +11,8 @@ Revision history for Perl extension MultiTail.
 	- Port to Windows NT 
 		Tested on perl5.004_04
 
+0.03 Monday February 2 08:16:34 EST 1998
+
+	- Fix mistake in AUTOLOAD function 
+	- Fixed up code for better reading
+
