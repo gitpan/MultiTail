@@ -16,3 +16,8 @@ Revision history for Perl extension MultiTail.
 	- Fix mistake in AUTOLOAD function 
 	- Fixed up code for better reading
 
+0.04 Friday February 27 09:36:06 EST 1998
+
+	- Added the tt option in OutputPrefix tt = complete timestamp
+	- Fixed Bug in MaxAge and File State
+

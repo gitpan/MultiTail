@@ -12,7 +12,7 @@ use File::stat qw(:FIELDS);
 use File::Basename;
 use FileHandle;
 use DirHandle;
-use vars qw( $AUTOLOAD $LastScan $True $False $DEBUG $VERSION $GMT $FileAttributeChanged );
+use vars qw( $AUTOLOAD $LastScan $True $False $DEBUG $VERSION $GMT $TC $FileAttributeChanged );
 #
 # Define sub
 #
@@ -49,6 +49,7 @@ sub match_closure;
 $True=1;
 $False=0;
 $GMT=$False;
+$TC=$False;
 $LastScan=time;
 $DEBUG=$False;
 $VERSION=0.2;
@@ -81,7 +82,7 @@ sub new {
 	#
 	my %Default=();
 	$Default{'Files'}=$False;
-	$Default{'MaxAge'}=1;
+	$Default{'MaxAge'}=10;
 	$Default{'NumLines'}=10;
 	$Default{'OutputPrefix'}=$False;
 	$Default{'Pattern'}=$False;
@@ -206,7 +207,7 @@ sub CheckAttributes {
 			next;
 		};
 		/OutputPrefix/ and do { # /OutputPrefix/ must be a file or ARRAY
-			unless ( $args->{OutputPrefix} =~ /^(p|f|t|tg|pt|ptg|ft|ftg|tp|tpg|tf|tfg)$/){
+			unless ( $args->{OutputPrefix} =~ /^(p|f|t|tg|tc|pt|ptg|ptc|ft|ftg|ftc|tp|tpg|tpc|tf|tfg|tfc)$/){
 				next if ! $args->{OutputPrefix};
 				print STDOUT "ERROR: MultiTail object OutputPrefix must ARRAY of file\n";
 		 		exit 1003;
@@ -546,9 +547,9 @@ sub read {
 				@{$FH->{'LineArray'}} = $FH->{'fh'}->getlines;
 				$FH->{'pos'}=$FH->{'fh'}->getpos;
 			}
-			if ($FH->{'stat'}{mtime} < ($PresentTime - $rFD->{'MaxAge'})) {
+			if ($FH->{'stat'}{mtime} < ($PresentTime - ($rFD->{'MaxAge'} * 60))) {
 				$FH->{'fh'}->close;
-				$FH->{'close'} = $True;
+				$FH->{'open'} = $False;
 			}
 		}
 		$FH->{'LastState'} = FileState;
@@ -726,14 +727,19 @@ sub CheckIfArrayOrFile {
 #  f   => file name of the input file
 #  t   => time in HHMMSS
 #  tg  => time in HHMMSS GMT
+#  tc  => time in MM/DD/YYYY HH:MM:SS
 #  pt  => path and time
 #  ptg => path and time GMT
+#  ptc => path and time complete
 #  ft  => file and time
 #  ftg => file and time GMT
+#  ftc => file and time complete
 #  tp  => time and path
 #  tpg => time and path GMT
+#  tpc => time complete and path
 #  tf  => time and file
 #  tfg => time and file GMT
+#  tfc => time complete and file
 #
 ########################################################################
 sub Prefix {
@@ -752,6 +758,10 @@ sub Prefix {
 	if ( $rFD->{'OutputPrefix'} =~ /g/ ) {
 		$TmpOutputPrefix =~ s/g//;
 		$GMT=$True;
+	}
+	if ( $rFD->{'OutputPrefix'} =~ /c/ ) {
+		$TmpOutputPrefix =~ s/c//;
+		$TC=$True;
 	}
 	foreach my $FH ( @{$rFD->{'FileArray'}} ) {
 		foreach my $LINE ( @{$FH->{$InArray}} ) {
@@ -1010,9 +1020,9 @@ sub OpenFileToTail {
 	# return if file is already open
 	#
 	#
-	# check if file has been changed in last MaxAge hours
+	# check if file has been changed in last MaxAge mins
 	if ( ($FH->{'LastMtime'} == $FH->{'stat'}{mtime}) && 
-	     ($FH->{'stat'}{mtime} < ($PresentTime - $rFD->{'MaxAge'})) &&
+	     ($FH->{'stat'}{mtime} < ($PresentTime - ($rFD->{'MaxAge'} * 60))) &&
 	      $FH->{'open'} ) {
 		$FH->{'fh'}->close if defined($FH->{'fh'});
 		$FH->{'OpenTime'} = 0;
@@ -1068,6 +1078,7 @@ sub UpdateStat {
 #
 sub Time {
 	my($rFD)=shift;
+	return scalar localtime if $TC;
 	my($sec,$min,$hour)=($GMT ? gmtime : localtime);
 	sprintf("%02d%02d%02d", $hour,$min,$sec);
 }
@@ -1383,14 +1394,19 @@ $tail->RemoveDuplicate($True);
 		       f  : file name of the input file
 		       t  : time in HHMMSS
 		       tg : time in HHMMSS GMT
+		       tc : time in MM/DD/YYYY HH:MM:SS
 		       pt : path and time
 		       ptg: path and time GMT
+		       ptc: path and time complete
 		       ft : file and time
 		       ftg: file and time GMT
+		       ftc: file and time complete
 		       tp : time and path
 		       tpg: time and path GMT
+		       tpc: time complete and path
 		       tf : time and file
 		       tfg: time and file GMT
+		       tfc: time complete and file
 	0 = (Default) No prefix
 	GMT = Greenwich time ZONE
 

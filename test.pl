@@ -27,6 +27,7 @@ my $False=0;
 $dir=cwd();
 
 $tail=MultiTail->new (  
+					 OutputPrefix    => 'ft',
                 RemoveDuplicate => $True,
                 Files => ["${dir}/$0"],
                 Pattern => ["script"],
