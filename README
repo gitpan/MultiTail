@@ -20,7 +20,8 @@ DESCRIPTION
 
     Note: File devices and inode number uniquely identify each entry
     in the UNIX filesystem. If the stat() command shows them to be
-    the same, then only one will be used. (Check for links)
+    the same, then only one will be used. Windows NT filesystem NTFS
+    does not allow links so I don't check for links on NT.
 
     (1) Files that exist at program start time will be positioned to
     Object attribute "NumLines" before input.
@@ -60,16 +61,15 @@ METHODS
 
         Creating a new PTAIL object
 
-        $tail = File::MultiTail->new( 
-					OutputPrefix => 'tf',
-        			RemoveDuplicate => $True, 
-					Files => ['/var/log','/var/adm/*.log'] );
+        $tail = File::MultiTail->new( OutputPrefix => 'tf',
+        RemoveDuplicate => $True, Files =>
+        ['/var/log','/var/adm/*.log'] );
 
         Or
 
-        $tail = File::MultiTail->new(); 
-			$tail->Files(['/var/log','/var/adm/*.log']); 
-			$tail->RemoveDuplicate($True);
+        $tail = File::MultiTail->new; $tail-
+        >Files(['/var/log','/var/adm/*.log']); $tail-
+        >RemoveDuplicate($True);
 
             class/object method takes arguments ( All have defaults )
             and returning a reference to a newly created MultiTail object.
@@ -77,8 +77,9 @@ METHODS
             File     :  File attribute accepts file names that includes 
                 both explicit  file/dir  names  and  file/dir expressions.
                 Duplicate  file  paths  are rejected, along with non-duplicate 
-                names  that  resolve to  a  device/inode combination that is 
-                currently being read.
+           names  that  resolve to  a  device/inode combination that is 
+                currently being read. NT file name must start with drive letter
+           or //
          
             Pattern  :  Arguments can be a file name or an array of patterns
                 Stores in object attribute  "LineArray" all lines

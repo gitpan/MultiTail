@@ -44,18 +44,25 @@ sub FileState;
 sub SetFileState;
 sub PosFileMark;
 sub printfilestates;
+sub match_closure;
 #
 $True=1;
 $False=0;
 $GMT=$False;
 $LastScan=time;
 $DEBUG=$False;
-$VERSION=0.1;
+$VERSION=0.2;
 $FileAttributeChanged=$False;
+my $pattern_sub;
+my $exceptpattern_sub;
 my %Attribute=();
 my @File_Data_Structure;
 my @StatArray = qw { dev ino mode nlink uid gid rdev size
          atime mtime ctime blksize blocks }; # Stat ids
+#
+# Code added for MSWin32
+#
+my $MSWin32 = ( $^O eq "MSWin32" ) ? $True : $False;
 #
 ########################################################################
 #
@@ -88,12 +95,12 @@ sub new {
 		$args->{$keys}=$Default{$keys} unless $args->{$keys};
 	}
 	#
+	$DEBUG=$args->{'Debug'};
 	if ( $args->{'Files'} ) {
 		$rds=CreateFileDataStructure( CreateListOfFiles($args->{'Files'})), 
 	}
 	# convert hash array to constant var
 	#
-	$DEBUG=$args->{'Debug'};
 	%Attribute = (
 		Files   => $args->{'Files'},
 		MaxAge  => $args->{'MaxAge'}, 
@@ -452,8 +459,12 @@ sub CreateListOfFiles {
 		#
 		# check for absolute path
 		#
-		unless ( $FILE =~ m#^/# ) {
+		unless ( $FILE =~ m#^/# || $MSWin32 ) {
 			print STDOUT "File $FILE is not absolute path ... will not be used\n" if $DEBUG; 
+			next;
+		}
+		unless ( ( $FILE =~ m#^\w:# || $FILE =~ m#^//# ) || ! $MSWin32 ) {
+			print STDOUT "File $FILE is not NT absolute path ... will not be used\n" if $DEBUG; 
 			next;
 		}
 		#
@@ -462,10 +473,10 @@ sub CreateListOfFiles {
 		next unless stat($FILE);
 		#
 		# Check if any two file names point to the same file
-		# Checking for links
+		# Checking for links (Note: There are not links in NT)
 		#
 		my $key = "$st_dev $st_ino";
-		if ( exists $path_file{$key} ) {
+		if ( exists $path_file{$key} && ! $MSWin32 ) {
 			print STDOUT "Warning: $FILE is linked to $path_file{$key}\n" if $DEBUG;
 			print STDOUT "File $path_file{$key} ... will not be used\n" if $DEBUG;
 			next;
@@ -477,8 +488,7 @@ sub CreateListOfFiles {
 			push(@ReturnFileArray,$FILE);
 		}
 		else {
-			print STDOUT "$FILE is not a text file , will not be used\n"
-			if $DEBUG;
+			print STDOUT "$FILE is not a text file , will not be used\n" if $DEBUG;
 		}
 	}
 	#
@@ -506,7 +516,7 @@ sub read {
 	if (( $rFileDataStructure->{'ScanForFiles'} and 
             ($LastScan + ($rFileDataStructure->{'ScanForFiles'}*60)) < $PresentTime) or
 	     $FileAttributeChanged ) {
-		print STDOUT "Scanning for new files\n";
+		print STDOUT "Scanning for new files\n" if $DEBUG;
 		$rFileDataStructure->{'FileArray'} = 
 		CreateFileDataStructure( CreateListOfFiles($rFileDataStructure->{'Files'}));
 		#
@@ -776,29 +786,14 @@ sub Prefix {
 sub Patterns {
 	my($rFileDataStructure)=shift;
 	#
-	my $evalcode;
-	my $r_patterns;
-	#
-	$r_patterns = CheckIfArrayOrFile($rFileDataStructure->{'Pattern'});
-	#
-	# create eval for efficiency in patterm matching
-	#
-	$evalcode = ' 
+  $pattern_sub = match_closure(CheckIfArrayOrFile($rFileDataStructure->{'Pattern'})) unless defined($pattern_sub);
 	foreach my $FILEH ( @{$rFileDataStructure->{FileArray}} ) {
 		@{$FILEH->{PatternLineArray}}=();
 		foreach my $LINE ( @{$FILEH->{LineArray}} ) {
-			$_=$LINE;
-			if (/';
-	$evalcode .= join ('/ || /', @$r_patterns);
-	$evalcode .='/) {
-				push(@{$FILEH->{PatternLineArray}},$LINE);
-			}
+			push(@{$FILEH->{PatternLineArray}},$LINE) if ( $pattern_sub->($LINE) );
 		}
 		@{$FILEH->{LineArray}}=@{$FILEH->{PatternLineArray}};
-	}';
-	#print $evalcode . "\n" if $DEBUG;
-	eval $evalcode;
-	croak "Error ---: $@\n Code:\n$evalcode\n" if ($@);
+	}
 	return($rFileDataStructure);
 }
 #
@@ -812,30 +807,28 @@ sub Patterns {
 sub ExceptPatterns {
 	my($rFileDataStructure)=shift;
 	#
-	my $evalcode;
-	my $r_patterns;
-	#
-	$r_patterns = CheckIfArrayOrFile($rFileDataStructure->{'ExceptPattern'});
-	#
-	# create eval for efficiency in patterm matching
-	#
-	$evalcode = ' 
+  $exceptpattern_sub = match_closure(CheckIfArrayOrFile($rFileDataStructure->{'ExceptPattern'})) unless defined($exceptpattern_sub);
 	foreach my $FILEH ( @{$rFileDataStructure->{FileArray}} ) {
 		@{$FILEH->{ExceptPatternLineArray}}=();
 		foreach my $LINE ( @{$FILEH->{LineArray}} ) {
-			$_=$LINE;
-			if (! /';
-	$evalcode .= join ('/ && ! /', @$r_patterns);
-	$evalcode .='/) {
-				push(@{$FILEH->{ExceptPatternLineArray}},$LINE);
-			}
+				push(@{$FILEH->{ExceptPatternLineArray}},$LINE) unless ( $exceptpattern_sub->($LINE) );
 		}
 		@{$FILEH->{LineArray}}=@{$FILEH->{ExceptPatternLineArray}};
-	}';
-	#print $evalcode . "\n" if $DEBUG;
-	eval $evalcode;
-	croak "Error ---: $@\n Code:\n$evalcode\n" if ($@);
+	}
+	#
 	return($rFileDataStructure);
+}
+#
+########################################################################
+#
+# create closures fuction with eval for efficiency in patterm matching
+#
+########################################################################
+sub match_closure {
+   my($array) = shift;
+	my $out;
+   $out = join ('|', @$array);
+   eval 'sub { $_[0] =~ /($out)/o; }'
 }
 #
 ########################################################################
@@ -1219,24 +1212,24 @@ sub PosFileMark {
 #
 ########################################################################
 #
-sub AUTOLOAD {
-	my($rFileDataStructure)=shift;
-	my $type = ref($rFileDataStructure) || croak "$rFileDataStructure is not and object";
-	my $attribute = $AUTOLOAD;
-	$attribute =~ s/.*://;
-	unless ( exists $rFileDataStructure->{$attribute} ) {
-		croak "Can't access $attribute field in oject $rFileDataStructure";
-	}
-	if ( $attribute eq "Files" ) {
-		$FileAttributeChanged=$True;
-	}
-	CheckAttributes($rFileDataStructure);
-	if (@_) {
-		return $rFileDataStructure->{$attribute} = shift;
-	} else {
-		return $rFileDataStructure->{$attribute};
-	}
-}
+#sub AUTOLOAD {
+#	my($rFileDataStructure)=shift;
+#	my $type = ref($rFileDataStructure) || croak "$rFileDataStructure is not and object";
+#	my $attribute = $AUTOLOAD;
+#	$attribute =~ s/.*://;
+#	unless ( exists $rFileDataStructure->{$attribute} ) {
+#		croak "Can't access $attribute field in oject $rFileDataStructure";
+#	}
+#	if ( $attribute eq "Files" ) {
+#		$FileAttributeChanged=$True;
+#	}
+#	CheckAttributes($rFileDataStructure);
+#	if (@_) {
+#		return $rFileDataStructure->{$attribute} = shift;
+#	} else {
+#		return $rFileDataStructure->{$attribute};
+#	}
+#}
 #
 #
 ########################################################################
@@ -1271,7 +1264,8 @@ following rules:
 
 Note: File devices and inode number uniquely identify each entry 
 in the UNIX filesystem. If the stat() command shows them to be 
-the same, then only one will be used. (Check for links)
+the same, then only one will be used. Windows NT filesystem
+NTFS does not allow links so I don't check for links on NT.
 
 (1) Files that exist at program start  time  will  be  
     positioned to Object attribute "NumLines" before input.
@@ -1337,8 +1331,9 @@ $tail->RemoveDuplicate($True);
     File     :  File attribute accepts file names that includes 
 	both explicit  file/dir  names  and  file/dir expressions.
 	Duplicate  file  paths  are rejected, along with non-duplicate 
-        names  that  resolve to  a  device/inode combination that is 
-	currently being read.
+   names  that  resolve to  a  device/inode combination that is 
+	currently being read. NT file name must start with drive letter
+   or //. 
  
     Pattern  :  Arguments can be a file name or an array of patterns
         Stores in object attribute  "LineArray" all lines
@@ -1579,7 +1574,7 @@ $tail1->print     : Print all line in object attribute  "LineArray";
 
 =head1 AUTHOR
 
-Stephen Miano, stevem@esm.com
+Stephen Miano, smiano@mindspring.com
 
 =head1 SEE ALSO
  
