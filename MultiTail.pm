@@ -52,7 +52,7 @@ $GMT=$False;
 $TC=$False;
 $LastScan=time;
 $DEBUG=$False;
-$VERSION=0.2;
+$VERSION=0.5;
 $FileAttributeChanged=$False;
 my $pattern_sub;
 my $exceptpattern_sub;
@@ -216,7 +216,8 @@ sub CheckAttributes {
 		};
 		/Pattern/ and do { # /Pattern/ must be a file or ARRAY
 			next if ! $args->{Pattern};
-			if ( ref($args->{Pattern}) ne "ARRAY" and ! -f ${$args->{Pattern}} ) {
+			no strict 'refs';
+			if ( ref($args->{Pattern}) ne "ARRAY" and ! -f $args->{Pattern} ) {
 				print STDOUT "ERROR: MultiTail object Pattern must ARRAY or file\n";
 		 		exit 1004;
 			}
@@ -693,8 +694,8 @@ sub CheckIfArrayOrFile {
 		#
 		{
 		no strict 'refs';
-		if ( -f $$r_listofpatterns ) {
-			$patternfile=$$r_listofpatterns;
+		if ( -f $r_listofpatterns ) {
+			$patternfile=$r_listofpatterns;
 			#
 			# open pattern file
 			#
@@ -1140,11 +1141,13 @@ sub FileState{
 	my($FH)=@_;
 	my $vector=pack("b4",0);
 	#
- 	vec($vector,0,1)=$FH->{'online'};	
- 	vec($vector,1,1)=$FH->{'read'};	
- 	vec($vector,2,1)=$FH->{'open'};	
- 	vec($vector,3,1)=$FH->{'exist'};	
-	vec($vector,0,8);
+	if( defined($FH->{'online'}) ) {
+		vec($vector,0,1)=$FH->{'online'};	
+		vec($vector,1,1)=$FH->{'read'};	
+		vec($vector,2,1)=$FH->{'open'};	
+		vec($vector,3,1)=$FH->{'exist'};	
+		vec($vector,0,8);
+	}
 }
 ########################################################################
 #
